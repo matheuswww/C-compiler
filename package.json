@@ -1,0 +1,27 @@
+{
+  "name": "c-compiler",
+  "version": "1.0.0",
+  "description": "",
+  "main": "main.js",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "start": "node ."
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/matheuswww/C-compiler.git"
+  },
+  "keywords": ["c compiler", "javascript", "typescript"],
+  "author": "",
+  "license": "ISC",
+  "type": "UNLICENSED",
+  "bugs": {
+    "url": "https://github.com/matheuswww/C-compiler/issues"
+  },
+  "homepage": "https://github.com/matheuswww/C-compiler#readme",
+  "dependencies": {
+    "@types/node": "^24.3.1",
+    "typescript": "^5.9.2"
+  }
+}
