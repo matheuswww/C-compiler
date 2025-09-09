@@ -1,3 +1,6 @@
+import { $, $$, QM, REX, Star, ValidTypes } from "./rex";
+
+/*
 import { FileLexer, Lexer } from "./lexer";
 
 export let log:(x:string)=>void;
@@ -12,6 +15,7 @@ console.log(inp)
 
 lxr = new FileLexer(inp);
 log(lxr.tokens as unknown as string);
+*/
 
 /*
 do {

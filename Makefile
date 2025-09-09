@@ -1,8 +1,11 @@
 .PHONY: run clean
 
-all: main.js lexer.js
+all: main.js lexer.js rex.js
 
 lexer.js: lexer.ts
+	npx tsc $<
+
+rex.js: rex.ts
 	npx tsc $<
 
 main.js: main.ts

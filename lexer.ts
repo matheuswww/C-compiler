@@ -153,7 +153,7 @@ interface Ifilelexer {
   tokens: Token[];
 }
 
-export class Lexer implements Ilexer {
+class Lexer implements Ilexer {
   public input:string;
   public token?:Token;
   
@@ -232,7 +232,7 @@ export class Lexer implements Ilexer {
   }
 }
 
-export class FileLexer implements Ifilelexer {
+class FileLexer implements Ifilelexer {
   public input:string;
   public tokens:Token[];
 
@@ -288,3 +288,6 @@ export class FileLexer implements Ifilelexer {
     }
   }
 }
+
+export { Lexer, FileLexer };
+export type { Token };
