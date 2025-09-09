@@ -1,13 +1,19 @@
-import { Lexer } from "./lexer";
+import { FileLexer, Lexer } from "./lexer";
 
 export let log:(x:string)=>void;
 log = console.log;
 
-let lxr:Lexer;
+let lxr:FileLexer;
 let inp:string;
 
-inp = 'int main() {\nreturn 5;\n}';
+inp = 'int main() {\n  return 5;\n}';
 
+console.log(inp)
+
+lxr = new FileLexer(inp);
+log(lxr.tokens as unknown as string);
+
+/*
 do {
   lxr = new Lexer(inp);
 
@@ -19,3 +25,4 @@ do {
     inp = lxr.input;
   }
 } while(lxr.token?.tag != '<eof>');
+*/

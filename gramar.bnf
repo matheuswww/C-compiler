@@ -1,0 +1,9 @@
+program     ::= [function ...]
+funhead     ::= Keyword Identifier Openround Closeround codeblock
+codeblock   ::= Opencurly [statement...] Closecurly
+statement   ::= declaration | assignment | funapp | returnstm
+declaration ::= <null>
+assignment  ::= <null>
+funapp      ::= <null>
+returnstm   ::= Keyword "return" expression
+expression  ::= Numberconstant Semicolon

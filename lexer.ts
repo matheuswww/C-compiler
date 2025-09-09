@@ -12,7 +12,7 @@ regexplist = [
   { regexp: /^\{/, tokenname: 'opencurly' },
   { regexp: /^\}/, tokenname: 'closecurly' },
   { regexp: /^;/, tokenname: 'semicolon' },
-  { regexp: /^(int)|(return)/, tokenname: 'keyword' },
+  { regexp: /^"int"|"return"/, tokenname: 'keyword' },
   { regexp: /^[a-zA-Z_'$][a-zA-Z_0-9'$]+/, tokenname: 'identifier' }, 
   { regexp: /^[0-9]+/, tokenname: 'numberconst' }
 ];
@@ -94,6 +94,9 @@ let semicolon:()=>Tsemicolon;
 let numberconst:(arg: number)=> Tnumberconst;
 let eof:()=>TEOF;
 
+let eq:(t1:Token, t2:Token)=>boolean;
+
+eq = (t1:Token, t2:Token): boolean => (t1 && t2 && (t1.tag == t2.tag) ? true : false);
 keyword = (arg: string): Tkeyword => ({
   tag: 'keyword',
   contents: arg as Keyword
@@ -140,6 +143,14 @@ interface Ilexer {
   lex: ()=>void;
   input: string;
   token?: Token;
+}
+
+interface Ifilelexer {
+  constructor:Function;
+  lexfile_:(ts:Token[], str:string)=>boolean;
+  lexfile:()=>boolean;
+  input:string;
+  tokens: Token[];
 }
 
 export class Lexer implements Ilexer {
@@ -218,5 +229,62 @@ export class Lexer implements Ilexer {
     this.token = token;
 
     return void 0;
+  }
+}
+
+export class FileLexer implements Ifilelexer {
+  public input:string;
+  public tokens:Token[];
+
+  constructor(str: string) {
+    let ret:boolean;
+    if (!str)
+        throw 'Empty input string;';
+    this.input = str;
+    this.tokens = [];
+    ret = this.lexfile();
+    if (!ret)
+      throw 'Parse error (lexing)';
+  }
+
+  public lexfile():boolean {
+    let ret:boolean;
+
+    ret = this.lexfile_([], this.input);
+    return ret;
+  }
+
+  public lexfile_(ts:Token[], str:string):boolean {
+    let tok:Token;
+    let toks:Token[];
+    let str_:string;
+    let lxr:Lexer|null;
+    let ret:boolean;
+    
+    ret = true;
+    try {
+      lxr = new Lexer(str);
+      if (lxr.token) {
+        tok = lxr.token;
+        str_ = lxr.input;
+      } else {
+        throw "Parse error (lexer)"
+      }
+
+      toks = ts;
+      toks.push(tok);
+
+      if (eq(tok, eof())) {
+        this.tokens = toks;
+        this.input = '';
+        return true;
+      } else {
+        return this.lexfile_(toks, str_);
+      }
+    } catch (err: unknown) {
+      if (err instanceof String)
+        console.error(err as string);
+      return false; 
+    }
   }
 }
