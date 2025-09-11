@@ -243,4 +243,4 @@ export type { AST };
 
 export type { Numberconstant, Expr, Decl, Assigment, Identifier, Datatype };
 export { numberconstant, expr, identifier, datatype };
-export { ASTfunction, Codeblock, Returnstm, Stm, Program, SyntaxException };
+export { ASTfunction, Codeblock, Returnstm, Stm, Program, SyntaxException, Etype };

@@ -1,0 +1,231 @@
+import { closearound, closecurly, eof, eq, keyword, Keyword, Numberconst, numberconst, openaround, opencurly, semicolon, Token } from './lexer'
+import { identifier as tokenid} from './lexer'
+import { identifier as astid, Identifier, Program} from './ast'
+import { AST, ASTfunction, Codeblock, datatype, Datatype, Etype, Expr, numberconstant, Numberconstant, Returnstm, Stm, SyntaxException } from './ast'
+
+interface Iparser {
+  constructor:Function;
+  curtokens:Token[];
+  savedtotokens:Token[];
+  fail:(msg:string)=>never;
+  parse:()=>AST;
+  expression:()=>AST;
+  returnstm:()=>AST;
+  codeblock:()=>AST;
+  datatype:()=>AST;
+  fun:()=>AST;
+  program:()=>AST;
+}
+
+class Parser implements Iparser {
+  public curtokens:Token[];
+  public savedtotokens:Token[];
+
+  constructor(ts:Token[]) {
+    this.curtokens = ts;
+    this.savedtotokens = new Array(...this.curtokens)
+  }
+
+  public fail(msg:string = 'Parse Error'):never {
+    this.curtokens = this.savedtotokens;
+    throw new SyntaxException(msg); 
+  }
+
+  public expression(): AST {
+    let numconst:Numberconst;
+    let node:Numberconstant;
+    let t:Token;
+
+    t = this.curtokens.shift() || this.fail();
+    
+    if (eq(t, numberconst(t.contents as Numberconst)))
+      numconst = t.contents as Numberconst;
+    else
+      return this.fail("Parse Error");
+
+    node = numberconstant(numconst);
+    this.savedtotokens = new Array(...this.curtokens);
+
+    return node;
+  }
+
+  public returnstm(): AST {
+    let kw:Keyword;
+    let e:Expr;
+    let node:Returnstm;
+    let t:Token;
+
+
+    t = this.curtokens.shift() || this.fail()
+
+    if ((eq(t, keyword()) && (t.contents) && (t.contents === 'return')))
+      kw = t.contents;
+    else
+      return this.fail()
+
+    e = this.expression();
+    node = new Returnstm(e)
+    this.savedtotokens = new Array(...this.curtokens);
+
+    return node;
+  }
+
+  public statement(): AST {
+    let r:Returnstm;
+    let node:Stm;
+    let t:Token;
+
+    r = this.returnstm();
+    t = this.curtokens.shift() || this.fail();
+  
+    if (eq(t, semicolon()))
+      node = r;
+    else
+      return this.fail();
+    this.savedtotokens = new Array(...this.curtokens);
+
+    return node;
+  }
+
+  public codeblock(): AST {
+    let t:Token;
+    let ss:Stm[];
+    let s:Stm;
+    let node:Codeblock;
+    let parses: number;
+    let err: boolean;
+    let fatal:boolean;
+
+    parses = 0;
+    err = false;
+    fatal = false;
+    ss = [];
+
+    t = this.curtokens.shift() || this.fail();
+
+    if (!eq(t, opencurly()))
+      this.fail();
+    
+    this.savedtotokens = new Array(...this.curtokens);
+    while (!err) {
+      try {
+        this.savedtotokens = new Array(...this.curtokens);
+        s = this.statement();
+        ss.push(s);
+
+        parses++;
+      } catch {
+        err = true;
+        this.savedtotokens = new Array(...this.curtokens);
+      }
+
+      if (fatal)
+        this.fail();
+    }
+    if (!parses)
+        return this.fail();
+  
+    t = this.curtokens.shift() || this.fail();
+    if (!eq(t, closecurly()))
+      this.fail();
+        
+    node = new Codeblock(ss);
+
+    return node;
+  }
+
+  public datatype(): AST {
+    let node:Datatype;
+    let t:Token;
+    let kw:Keyword;
+    let et:Etype;
+
+    t = this.curtokens.shift() || this.fail();
+    if ((eq(t, keyword()) && t.contents == 'int'))
+      kw = t.contents;
+    else {
+      this.fail();
+
+    }
+    et = Etype.Int;
+    node = datatype(et);   
+    this.savedtotokens = new Array(...this.curtokens);
+    
+    return node;
+  }
+
+  public fun(): AST {
+    let d:Datatype;
+    let i:Identifier;
+    let c:Codeblock;
+    let node:ASTfunction;
+    let t:Token;
+
+    d = this.datatype();
+    t = this.curtokens.shift() || this.fail();
+
+    if (eq(t, tokenid()))
+      i = astid(t.contents as string)
+    else
+      return this.fail();
+
+    t = this.curtokens.shift() || this.fail();
+    if (!eq(t, openaround()))
+      return this.fail();
+
+    t = this.curtokens.shift() || this.fail();
+    if (!eq(t, closearound()))
+      return this.fail();
+
+    c = this.codeblock();
+    this.savedtotokens = new Array(...this.curtokens);
+
+    node = new ASTfunction(d, i, c);
+
+    return node;
+  }
+
+  public program(): AST {
+    let f:ASTfunction
+    let fs:ASTfunction[];
+    let p:Program;
+    let parsed:number;
+    let err:boolean;
+    let t:Token;
+
+    err = false;
+    parsed = 0;
+    fs = [];
+
+    while (!err) {
+      try {
+        f = this.fun();
+        this.savedtotokens = new Array(...this.curtokens);
+        fs.push(f);
+        parsed++;
+      } catch (error) {
+        err = true
+      }      
+    }
+
+    if (!parsed)
+      this.fail();
+  
+    t = this.curtokens.shift() || this.fail();
+    if (!eq(t, eof()) || this.curtokens.length)
+      this.fail();
+
+    p = new Program(fs);
+    
+    return p;
+  }
+
+  public parse(): AST {
+    let a:AST;
+    a = this.program();
+
+    return a;
+  }
+}
+
+export { Parser };

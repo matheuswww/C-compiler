@@ -4,16 +4,17 @@ interface Iregexp {
 }
 
 let regexplist:Iregexp[];
- 
+
 regexplist = [
   { regexp: /^\s+/, tokenname: 'whitespace' },
   { regexp: /^\(/, tokenname: 'openaround' },
   { regexp: /^\)/, tokenname: 'closearound' },
-  { regexp: /^\{/, tokenname: 'opencurly' },
-  { regexp: /^\}/, tokenname: 'closecurly' },
+  { regexp: /^{/, tokenname: 'opencurly' },
+  { regexp: /^}/, tokenname: 'closecurly' },
   { regexp: /^;/, tokenname: 'semicolon' },
-  { regexp: /^"int"|"return"/, tokenname: 'keyword' },
-  { regexp: /^[a-zA-Z_'$][a-zA-Z_0-9'$]+/, tokenname: 'identifier' }, 
+  { regexp: /^int/, tokenname: 'keyword' },
+  { regexp: /^return/, tokenname: 'keyword' },
+  { regexp: /^[a-zA-Z_'][a-zA-Z_0-9']+/, tokenname: 'identifier' }, 
   { regexp: /^[0-9]+/, tokenname: 'numberconst' }
 ];
 
@@ -83,9 +84,9 @@ interface TEOF {
   contents?: EOF;
 }
 
-let keyword:(kw: string)=>Tkeyword;
+let keyword:(kw?: string)=>Tkeyword;
 let whitespace:()=>Twhitespace;
-let identifier:(arg: string)=>Tidentifier;
+let identifier:(arg?: string)=>Tidentifier;
 let openaround:()=>Topenaround;
 let closearound:()=>Tclosearound;
 let opencurly:()=>Topencurly;
@@ -96,21 +97,20 @@ let eof:()=>TEOF;
 
 let eq:(t1:Token, t2:Token)=>boolean;
 
-eq = (t1:Token, t2:Token): boolean => (t1 && t2 && (t1.tag == t2.tag) ? true : false);
-keyword = (arg: string): Tkeyword => ({
+keyword = (arg?: string): Tkeyword => ({
   tag: 'keyword',
   contents: arg as Keyword
 });
-identifier = (kw: string): Tidentifier => ({
+identifier = (arg:string=''): Tidentifier => ({
   tag: 'identifier',
-  contents: kw as Identifier
+  contents: arg as Identifier
 });
 whitespace = (): Twhitespace => ({
   tag: 'whitespace',
   contents: undefined as unknown as Whitespace
 });
-numberconst = (arg: number): Tnumberconst  => ({
-  tag: 'semicolon',
+numberconst = (arg:number=0): Tnumberconst  => ({
+  tag: 'numberconst',
   contents: arg as Numberconst
 });
 openaround = (): Topenaround => ({
@@ -138,6 +138,8 @@ eof = (): TEOF => ({
   contents: undefined as unknown as EOF
 });
 
+eq = (t1:Token, t2:Token): boolean => (t1 && t2 && (t1.tag == t2.tag) ? true : false);
+
 interface Ilexer {
   constructor:Function;
   lex: ()=>void;
@@ -154,7 +156,7 @@ interface Ifilelexer {
 }
 
 class Lexer implements Ilexer {
-  public input:string;
+  public input:string; 
   public token?:Token;
   
   constructor(str: string) {
@@ -251,6 +253,7 @@ class FileLexer implements Ifilelexer {
     let ret:boolean;
 
     ret = this.lexfile_([], this.input);
+    this.tokens = this.tokens.filter((x:Token): boolean => (!eq(x,whitespace())));
     return ret;
   }
 
@@ -289,5 +292,6 @@ class FileLexer implements Ifilelexer {
   }
 }
 
-export { Lexer, FileLexer };
-export type { Token };
+export { Lexer, FileLexer, eq };
+export { keyword, whitespace, identifier, openaround, closearound, opencurly, closecurly, semicolon, numberconst, eof };
+export type { Token, Identifier, EOF, Whitespace, Openaround, Closearound, Opencurly, Closecurly, Semicolon, Numberconst, Keyword }
