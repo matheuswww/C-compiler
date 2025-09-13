@@ -1,6 +1,6 @@
 import { closearound, closecurly, eof, eq, keyword, Keyword, Numberconst, numberconst, openaround, opencurly, semicolon, Token } from './lexer'
 import { identifier as tokenid} from './lexer'
-import { identifier as astid, Identifier, Program} from './ast'
+import { identifier as astid, expr, Identifier, Program} from './ast'
 import { AST, ASTfunction, Codeblock, datatype, Datatype, Etype, Expr, numberconstant, Numberconstant, Returnstm, Stm, SyntaxException } from './ast'
 
 interface Iparser {
@@ -33,7 +33,8 @@ class Parser implements Iparser {
 
   public expression(): AST {
     let numconst:Numberconst;
-    let node:Numberconstant;
+    let n:Numberconstant
+    let node:Expr;
     let t:Token;
 
     t = this.curtokens.shift() || this.fail();
@@ -43,7 +44,8 @@ class Parser implements Iparser {
     else
       return this.fail("Parse Error");
 
-    node = numberconstant(numconst);
+    n = numberconstant(numconst)
+    node = expr(n);
     this.savedtotokens = new Array(...this.curtokens);
 
     return node;
@@ -79,7 +81,7 @@ class Parser implements Iparser {
     t = this.curtokens.shift() || this.fail();
   
     if (eq(t, semicolon()))
-      node = r;
+      node = new Stm(r);
     else
       return this.fail();
     this.savedtotokens = new Array(...this.curtokens);

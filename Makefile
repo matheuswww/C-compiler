@@ -27,7 +27,9 @@ rex.js: rex.ts
 
 main.js: main.ts
 	npx tsc $<
+
 run:
-	npm start
+	node main.js main.c -o main
+
 clean:
-	rm -f *.js parser.ts
+	rm -f *.js *.asm *.o  parser.ts codegen.ts
