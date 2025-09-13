@@ -1,9 +1,8 @@
-program     ::= [function ...]
-funhead     ::= Keyword Identifier Openround Closeround codeblock
-codeblock   ::= Opencurly [statement...] Closecurly
-statement   ::= declaration | assignment | funapp | returnstm
-declaration ::= <null>
-assignment  ::= <null>
-funapp      ::= <null>
-returnstm   ::= Keyword "return" expression
-expression  ::= Numberconstant Semicolon
+<program>     ::= { <function> } Eof
+<function>    ::= <Keyword> Identifier Openround Closeround
+                  <codeblock>
+<datatype>    ::= Keyword(int)
+<codeblock>   ::= Opencurly { <statement> } Closecurly
+<statement>   ::= <returnstm> Semicolon
+<returnstm>   ::= Keyword(return) expression
+<expression>  ::= Numberconstant

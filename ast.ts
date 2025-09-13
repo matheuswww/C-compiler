@@ -159,10 +159,10 @@ class Returnstm extends ASE implements Ireturnstm {
 }
 
 class Stm implements Istm {
-  tag: string;
+  tag: string = '';
   decl?: Decl;
   assignment?: Assigment;
-  retrunstm?: Returnstm;
+  returnstm?: Returnstm;
 
   constructor(input:Decl);
   constructor(input:Assigment);
@@ -170,22 +170,24 @@ class Stm implements Istm {
   constructor(input:Tstm) {
     let ok:boolean;
 
-    this.tag = 'Stm';
     ok = false;
     log(input.tag)
     switch (input.tag) {
       case "Decl":
         this.decl = input;
+        this.tag = 'Decl'
         ok = true;
         break;
     
       case 'Assignment':
           this.assignment = input;
+          this.tag = 'Assignment'
           ok = true;
           break;
         
       case 'Returnstm':
-          this.retrunstm = input;
+          this.returnstm = input;
+          this.tag = 'Returnstm'
           ok = true;
           break;
 
@@ -232,8 +234,6 @@ test = (): void => {
   f = new ASTfunction(d, i, c);
   p = new Program([f]);
   ast = p;
-
-  log(JSON.stringify(ast,null,3));
 
   return void 0;
 }

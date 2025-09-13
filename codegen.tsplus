@@ -1,0 +1,395 @@
+import { type AST, ASTfunction, Codeblock, datatype, Datatype, Etype, expr, Expr, identifier, Identifier, numberconstant, Numberconstant, Program, Returnstm, Stm } from "./ast";
+
+interface Iregsiter {
+  idx:number
+  r16:string|null
+  r32:string;
+  r64: string;
+}
+
+interface State {
+  alloclist:Scratch[];
+  freelist:Scratch[];
+  nextlabel:number;
+  labelist:Set<string>;
+}
+
+interface Label {
+  name: string;
+  global: boolean;
+}
+
+type RegSet = ReadonlyArray<Iregsiter>;
+type Scratch = | 'bx' | 'cx' | 'di' | 'si'
+type RetVal = [x:string,y:string,z:Scratch[]];
+
+enum architecture {
+  ia16,
+  ia32,
+  ia64
+}
+
+let salloc:(s:State)=>Scratch;
+let sfree:(s:State, r:Scratch)=>void;
+let state:()=>State;
+let label:(s:State,l:string|null,global?:boolean)=>Label;
+
+salloc = (s:State): Scratch => {
+  let r:Scratch|null;
+
+  r = s.freelist.shift() || null;
+  
+  if (!r)
+    throw new Error('Out of scratches')
+
+  s.alloclist.push(r);
+
+  return r;
+};
+sfree = (s:State,r:Scratch): void => {
+  let rs:Scratch[];
+  let n:number;
+
+  n = s.alloclist.length;
+  rs = s.alloclist.filter((x:Scratch) => (x != r));
+
+  if (n != rs.length)
+    s.freelist.push(r);
+
+  return;
+};
+
+state = ():State => ({
+  alloclist: [],
+  freelist: ['bx','cx','di','si'],
+  nextlabel: 1,
+  labelist: new Set<string>()
+});
+
+label = (s:State,l:string|null,global?:boolean): Label => {
+  let x:Label;
+  x = ( l === null ) ? {
+    name: "lbl" + (s.nextlabel++).toString(),
+    global: (global) ? true : false
+  } :
+  (l == 'main') ?
+  {
+    name: '_main',
+    global: (global) ? true : false
+  } :
+  {
+    name: l,
+    global: (global) ? true : false
+  }
+
+  if (s.labelist.has(x.name))
+    throw new Error("Duplicate labels")
+  else
+    return (s.labelist.add(x.name) && x);
+}
+
+interface Iarch {
+  constructor:Function;
+  arch:architecture;
+  regset:RegSet;
+  convert:(r:string)=>string;
+}
+
+class Arch implements Iarch {
+  public arch:architecture;
+  public regset:RegSet;
+  public constructor(a:architecture) {
+    this.regset = [
+    {idx: 0, r16: 'ax', r32: 'eax', r64: 'rax'},
+    {idx: 1, r16: 'bx', r32: 'ebx', r64: 'rbx'},
+    {idx: 2, r16: 'cx', r32: 'ecx', r64: 'rcx'},
+    {idx: 3, r16: 'dx', r32: 'edx', r64: 'rdx'},
+    {idx: 4, r16: 'di', r32: 'edi', r64: 'rdi'},
+    {idx: 5, r16: 'si', r32: 'esi', r64: 'rsi'},
+    {idx: 6, r16: 'sp', r32: 'esp', r64: 'rsp'},
+    {idx: 7, r16: 'bp', r32: 'ebp', r64: 'rbp'},
+    {idx: 8, r16: 'ip', r32: 'eip', r64: 'rip'},
+    {idx: 9, r16: 'ss', r32: 'ss', r64: 'ss'},
+    {idx: 10, r16: 'ds', r32: 'ds', r64: 'ds'},
+    {idx: 11, r16: 'es', r32: 'es', r64: 'es'},
+    {idx: 12, r16: 'cs', r32: 'cs', r64: 'cs'},
+    {idx: 13, r16: 'null', r32: 'gs', r64: 'gs'},
+    {idx: 14, r16: null, r32: 'fs', r64: 'fs'}
+    ];
+
+    switch (a) {
+      case architecture.ia16:
+      case architecture.ia32:
+      case architecture.ia64:
+        this.arch = a;
+        break;
+      default:
+        throw new Error('Unknow architecture');
+    }
+  }
+  
+  public convert(r:string):string {
+    let reg:Iregsiter|null;
+    
+    reg = this.regset.find((x:Iregsiter): boolean => ((x.r16 == r || x.r32 == r || x.r64 == r))) || null;
+
+    if (!reg) {
+      throw new Error('Unknown register');
+    }
+    switch (this.arch) {
+      case architecture.ia16:
+        if (reg.r16 == null)
+          return reg.r32;
+        else
+          return reg.r16;
+      case architecture.ia32:
+        return reg.r32;
+      case architecture.ia64: return reg.r64;
+      default:
+        throw new Error('Bad archtecture');
+    }
+  }
+}
+
+interface Iassembly {
+  constructor:Function;
+  get emit(): RetVal;
+  header: string;
+  body: string;
+  regs:Scratch[];
+}
+
+class Assembly implements Iassembly {
+  public header: string;
+  public body: string;
+  public regs: Scratch[];
+
+  
+  public constructor(s:State, arch:Arch, node:AST|null, header?:string, 
+    body?:string, register?:Scratch) {
+    let reg:Scratch;
+    let dstreg:string;
+    let srcreg: string;
+
+    this.regs = [];
+    this.header = this.body = '';
+    if (!node) {
+      if (!header && !body) {
+        throw new Error('Argument error');
+      }
+      else {
+        (header)?(this.header=header):void 0;
+        (body)?(this.body=body):void 0;
+      }
+    }
+    else switch (true) {
+      case (node instanceof Program):
+        let bits:number;
+        let sbits:string;
+        let lbl1:Label;
+        let lbl2:Label;
+        let r:string;
+        let r2:string;
+        let exitnr:number;
+        let sexitnr:string;
+
+        bits = (arch.arch == architecture.ia16) ?
+          16 :
+          (arch.arch == architecture.ia32) ?
+          32 :
+          (arch.arch == architecture.ia64) ?
+          64 :
+          this.fail('Bad architecture')
+
+        exitnr = (arch.arch < architecture.ia64) ?
+          1 :
+          (arch.arch == architecture.ia64) ?
+          60 :
+          this.fail('Bad architecture');
+
+        sexitnr = exitnr.toString();
+        sbits = bits.toString();
+        lbl1 = label(s, '_start', true);
+        lbl2 = label(s, '_exit', false);
+        r = arch.convert('ax');
+        r2 = arch.convert('bx');
+
+        this.header = 
+          `bits ${sbits}\n`
+          + `global ${lbl1.name}`;
+        
+        this.body = 
+          "_exit:\n"
+          + `mov ${r2},${r}\n`
+          + `mov ${r},${sexitnr}\n`
+          + "int 0x80\n"
+          + "ret\n"
+          + "\n"
+          + "_start:\n"
+          + "call _main\n"
+          + "call _exit\n"
+          + "ret\n"
+        
+        break;
+
+      case (node instanceof ASTfunction):
+        {
+          let name:string
+          let lbl:Label;
+          let bp:string;
+          let sp:string;
+
+          name = node.name;
+          lbl = label(s, name, true);
+          bp = arch.convert('bp');
+          sp = arch.convert('sp');
+
+          if (lbl.global)
+            this.header = `global ${lbl.name}`
+
+          this.body = 
+          `${lbl.name}:\n`
+          + `push ${bp}\n`
+          + `mov ${bp},${sp}`;
+        }
+
+        break;
+        
+      case (node instanceof Returnstm): 
+        {
+          let bp:string;
+          let sp:string;
+
+          if (!register) {
+            throw new Error('no scratch register provided.');
+          }
+          sp = arch.convert('sp');
+          bp = arch.convert('bp');
+          dstreg = arch.convert('ax');
+          srcreg = arch.convert(register);
+          sfree(s, register);
+
+          this.header = '';
+          this.body = 
+          `mov ${dstreg},${srcreg}\n`
+          + `mov ${sp},${bp}\n`
+          + `pop ${bp}\n`
+          + "ret\n\n";
+        }
+        break;
+    
+      default:
+        switch (node.tag) {
+          case 'Expr':
+            reg = salloc(s);
+            this.regs.push(reg);
+            dstreg = arch.convert(reg);
+            this.header = '';
+            this.body = `mov ${dstreg},${new Number(node)}\n`;
+            break;
+        
+          default:
+            throw new Error('Unknown AST node');
+        }
+      }
+  }
+
+  public fail(msg:string = 'Error in code generation'): never {
+    throw new Error(msg);
+  }
+
+  public get emit(): RetVal {
+    return [this.header, this.body, this.regs];
+  }
+}
+
+interface Icodegen {
+  constructor:Function;
+  fail:(msg?:string)=>never;
+  get emit(): string;
+  header:string;
+  text:string;
+  data:string;
+  bss:string;
+}
+
+class CodeGen implements Icodegen {
+  public header:string;
+  public text:string;
+  public data:string;
+  public bss:string;
+
+  public constructor(s:State, ast:AST, arch:architecture) {
+    let p:Program;
+    let c:Codeblock;
+    let r:Returnstm;
+    let e:Expr;
+    let n:Numberconstant;
+    let regs:Scratch[];
+    let reg:Scratch;
+    let hdr:string;
+    let body:string;
+    let a:Arch;
+    let asm:Assembly;
+
+    this.header = '';
+    this.text = '';
+    this.data = '';
+    this.bss = '';
+
+    a = new Arch(arch);
+    p = ast;
+    asm = new Assembly(s, a, p);
+    [ hdr, body ] = asm.emit;
+    this.header += hdr + "\n";
+    this.text += body + "\n";
+
+    p.fns.forEach((x:ASTfunction): void => {
+      asm = new Assembly(s, a, x);
+      [ hdr, body ] = asm.emit;
+      this.header += hdr + "\n";
+      this.text += body + "\n";
+    
+      c = x.body;
+
+      c.stms.forEach((y:Stm): void => {
+        switch (y.tag) {
+          case 'Returnstm':
+            r = y.returnstm as Returnstm;
+            e = r.expr;
+            n = e;
+            asm = new Assembly(s, a, e);
+            [ hdr, body, regs ] = asm.emit;
+            if (!regs[0])
+              throw new Error("No register")
+            reg = regs[0];
+            this.header += hdr;
+            this.text += body;
+
+            asm = new Assembly(s, a, r, undefined, undefined, reg);
+            [ hdr, body ] = asm.emit;
+            this.header += hdr;
+            this.text += body;
+            break;
+        
+          default:
+            throw new Error('Bad statement');
+        }
+      })
+    });
+  }
+
+  public fail(msg:string = 'Error in code generation'):never {
+    throw new Error(msg);
+  }
+
+  public get emit(): string {
+    return this.header + "\n"
+        + ((this.data.length) ? this.data + "\n" : '')
+        + ((this.bss.length) ? this.bss + "\n" : '')
+        + ((this.text.length) ? this.text + "\n" : '');
+  }
+}
+
+export { state, Arch, CodeGen, architecture };
+export type { State };
